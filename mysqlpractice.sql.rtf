@@ -1,0 +1,321 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2709
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
+{\colortbl;\red255\green255\blue255;}
+{\*\expandedcolortbl;;}
+\paperw11900\paperh16840\margl1440\margr1440\vieww11520\viewh8400\viewkind0
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+
+\f0\fs24 \cf0 /* =========================================================\
+   HEALTHCARE SQL PRACTICE SCRIPT (INTERVIEW PREP)\
+   Covers:\
+   - Schema creation\
+   - Test data generation\
+   - Basic queries\
+   - Filtering\
+   - Aggregations\
+   - Joins\
+   - Pagination\
+   - Advanced queries\
+========================================================= */\
+\
+\
+/* =========================================================\
+   1. CREATE TABLES\
+========================================================= */\
+\
+DROP TABLE IF EXISTS appointments;\
+DROP TABLE IF EXISTS providers;\
+\
+-- Providers table\
+CREATE TABLE providers (\
+    id SERIAL PRIMARY KEY,\
+    name VARCHAR(100),\
+    type VARCHAR(50),\
+    specialty VARCHAR(100),\
+    city VARCHAR(100),\
+    rating DECIMAL(2,1),\
+    phone VARCHAR(20),\
+    consultation_fee INT,\
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP\
+);\
+\
+-- Appointments table\
+CREATE TABLE appointments (\
+    id SERIAL PRIMARY KEY,\
+    provider_id INT REFERENCES providers(id),\
+    patient_name VARCHAR(100),\
+    appointment_date TIMESTAMP,\
+    status VARCHAR(20),\
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP\
+);\
+\
+\
+\
+/* =========================================================\
+   2. INSERT SAMPLE PROVIDERS (100 rows)\
+========================================================= */\
+\
+INSERT INTO providers (name, type, specialty, city, rating, phone, consultation_fee)\
+SELECT\
+    'Provider ' || g,\
+    CASE \
+        WHEN g % 3 = 0 THEN 'Hospital'\
+        WHEN g % 3 = 1 THEN 'Clinic'\
+        ELSE 'Diagnostic'\
+    END,\
+    CASE \
+        WHEN g % 5 = 0 THEN 'Cardiology'\
+        WHEN g % 5 = 1 THEN 'Dermatology'\
+        WHEN g % 5 = 2 THEN 'Orthopedic'\
+        WHEN g % 5 = 3 THEN 'Neurology'\
+        ELSE 'General'\
+    END,\
+    CASE \
+        WHEN g % 4 = 0 THEN 'Hyderabad'\
+        WHEN g % 4 = 1 THEN 'Bangalore'\
+        WHEN g % 4 = 2 THEN 'Chennai'\
+        ELSE 'Mumbai'\
+    END,\
+    ROUND((random()*5)::numeric,1),\
+    '90000000' || g,\
+    (random()*1000)::int + 200\
+FROM generate_series(1,100) g;\
+\
+\
+\
+/* =========================================================\
+   3. INSERT APPOINTMENTS (200 rows)\
+========================================================= */\
+\
+INSERT INTO appointments (provider_id, patient_name, appointment_date, status)\
+SELECT\
+    floor(random()*100 + 1)::int,\
+    'Patient ' || g,\
+    NOW() - (random()*10 || ' days')::interval,\
+    CASE \
+        WHEN g % 3 = 0 THEN 'COMPLETED'\
+        WHEN g % 3 = 1 THEN 'SCHEDULED'\
+        ELSE 'CANCELLED'\
+    END\
+FROM generate_series(1,200) g;\
+\
+\
+\
+/* =========================================================\
+   BASIC QUERIES\
+========================================================= */\
+\
+-- Fetch all providers\
+SELECT * FROM providers;\
+\
+-- Fetch selected columns\
+SELECT name, city, rating FROM providers;\
+\
+\
+\
+/* =========================================================\
+   FILTERING\
+========================================================= */\
+\
+-- Providers in Hyderabad\
+SELECT *\
+FROM providers\
+WHERE city = 'Hyderabad';\
+\
+-- Cardiologists in Hyderabad\
+SELECT *\
+FROM providers\
+WHERE city='Hyderabad'\
+AND specialty='Cardiology';\
+\
+-- Providers with rating > 4\
+SELECT *\
+FROM providers\
+WHERE rating > 4;\
+\
+-- Providers with consultation fee between 500 and 800\
+SELECT *\
+FROM providers\
+WHERE consultation_fee BETWEEN 500 AND 800;\
+\
+\
+\
+/* =========================================================\
+   SORTING\
+========================================================= */\
+\
+-- Sort by rating\
+SELECT *\
+FROM providers\
+ORDER BY rating DESC;\
+\
+-- Sort by rating then fee\
+SELECT *\
+FROM providers\
+ORDER BY rating DESC, consultation_fee ASC;\
+\
+\
+\
+/* =========================================================\
+   AGGREGATION\
+========================================================= */\
+\
+-- Total providers\
+SELECT COUNT(*) FROM providers;\
+\
+-- Average consultation fee\
+SELECT AVG(consultation_fee)\
+FROM providers;\
+\
+-- Providers per city\
+SELECT city, COUNT(*) AS total_providers\
+FROM providers\
+GROUP BY city;\
+\
+-- Providers per specialty\
+SELECT specialty, COUNT(*) AS total\
+FROM providers\
+GROUP BY specialty;\
+\
+\
+\
+/* =========================================================\
+   SUBQUERY\
+========================================================= */\
+\
+-- Providers with fee greater than average\
+SELECT *\
+FROM providers\
+WHERE consultation_fee >\
+(\
+    SELECT AVG(consultation_fee)\
+    FROM providers\
+);\
+\
+\
+\
+/* =========================================================\
+   JOINS\
+========================================================= */\
+\
+-- Inner join providers and appointments\
+SELECT\
+p.name AS provider_name,\
+a.patient_name,\
+a.status\
+FROM providers p\
+JOIN appointments a\
+ON p.id = a.provider_id;\
+\
+\
+-- Left join (include providers without appointments)\
+SELECT\
+p.name,\
+a.patient_name\
+FROM providers p\
+LEFT JOIN appointments a\
+ON p.id = a.provider_id;\
+\
+\
+\
+/* =========================================================\
+   GROUP BY WITH JOIN\
+========================================================= */\
+\
+-- Count appointments per provider\
+SELECT\
+p.id,\
+p.name,\
+COUNT(a.id) AS total_appointments\
+FROM providers p\
+LEFT JOIN appointments a\
+ON p.id = a.provider_id\
+GROUP BY p.id, p.name;\
+\
+\
+\
+/* =========================================================\
+   TOP PROVIDERS\
+========================================================= */\
+\
+-- Top 5 providers with most appointments\
+SELECT\
+p.name,\
+COUNT(a.id) AS total\
+FROM providers p\
+LEFT JOIN appointments a\
+ON p.id = a.provider_id\
+GROUP BY p.name\
+ORDER BY total DESC\
+LIMIT 5;\
+\
+\
+\
+/* =========================================================\
+   PROVIDERS WITH NO APPOINTMENTS\
+========================================================= */\
+\
+SELECT\
+p.id,\
+p.name\
+FROM providers p\
+LEFT JOIN appointments a\
+ON p.id = a.provider_id\
+WHERE a.id IS NULL;\
+\
+\
+\
+/* =========================================================\
+   PAGINATION\
+========================================================= */\
+\
+-- Page 1 (10 rows)\
+SELECT *\
+FROM providers\
+ORDER BY id\
+LIMIT 10 OFFSET 0;\
+\
+\
+-- Page 2\
+SELECT *\
+FROM providers\
+ORDER BY id\
+LIMIT 10 OFFSET 10;\
+\
+\
+\
+/* =========================================================\
+   FILTER + PAGINATION\
+========================================================= */\
+\
+SELECT *\
+FROM providers\
+WHERE city='Hyderabad'\
+AND rating > 3\
+ORDER BY rating DESC\
+LIMIT 10 OFFSET 0;\
+\
+\
+\
+/* =========================================================\
+   COUNT QUERY FOR PAGINATION (used in backend)\
+========================================================= */\
+\
+SELECT COUNT(*)\
+FROM providers\
+WHERE city='Hyderabad';\
+\
+\
+\
+/* =========================================================\
+   INDEXES (PERFORMANCE)\
+========================================================= */\
+\
+CREATE INDEX idx_provider_city\
+ON providers(city);\
+\
+CREATE INDEX idx_provider_specialty\
+ON providers(specialty);\
+\
+CREATE INDEX idx_appointment_provider\
+ON appointments(provider_id);}
